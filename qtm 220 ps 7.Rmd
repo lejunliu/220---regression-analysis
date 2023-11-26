@@ -1,0 +1,129 @@
+---
+title: "qtm 220 ps 7"
+output: html_document
+date: "2023-04-05"
+---
+
+```{r}
+# problem 1
+library(tidyverse)
+library(dbplyr)
+Q1 <- matrix(c(1, 1, 90, 60, 30, 2, 1, 80, 70, 10, 3, 1, 70, 60, 10, 4, 0, 80, 50, 30, 5, 0, 60, 40, 20), ncol = 5, byrow = TRUE)
+  
+colnames(Q1) <- c('ID', 'D', 'Y^1', 'Y^0', 'ITE')
+rownames(Q1) <- c(1,2,3,4,5)
+Q1
+
+ATT <- (30 + 10 + 10)/3
+message("ATT is ", ATT)
+ATC <- (30 + 20)/2
+message("ATC is ", ATC)
+ATE <- (30 + 10 + 10 + 30 + 20)/5
+message("ATE is ", ATE)
+
+# Regression
+D <- c(1,1,1,0,0)
+Y1 <- c(90,80,70,80,60)
+df <- tibble(D, Y1)
+mod.1 <- lm(Y1 ~ D, df)
+summary(mod.1)
+# the coefficient of D is 35, meaning that the treatment effect estimate using regression is 35, which is greater than ATE. 
+# Bias = (60 + 70 + 60)/3 - (50+ 40)/2 = 18.33
+```
+```{r}
+# problem 2A
+lalonde <- read.csv("lalondeExperiment.csv")
+lalonde %>%
+   group_by(assignmt) %>% 
+   summarise_at(vars("sex", "age", "prevearn","married", "hsorged", "black", "hispanic"), mean)
+treated <- lalonde[lalonde$assignmt == 1,]
+control <- lalonde[lalonde$assignmt == 0,]
+
+list_var <- c("sex", "age", "prevearn","married", "hsorged", "black", "hispanic")
+
+#Empty dataframe
+columns <- c("Variable", "Treated Mean","Control Mean",
+             "Difference","T-stat","P-value") 
+out <- data.frame(matrix(nrow = 0, ncol = length(columns))) 
+colnames(out) <- columns
+
+#Add t test results
+for(i in 1:length(list_var)){
+  t <- t.test(treated[,list_var[i]], control[,list_var[i]])
+  res <- c(t$estimate[1],t$estimate[2],
+           t$estimate[1] - t$estimate[2],
+           t$statistic,t$p.value)
+  res <- round(as.numeric(res),3)
+  res <- c(list_var[i], res)
+  out[nrow(out) + 1,] <- res
+}
+out
+# they are balanced across two groups
+```
+```{r}
+# problem 2B
+mod.2 <- lm(earnings ~ assignmt, lalonde)
+summary(mod.2)
+confint(mod.2, level = 0.95)
+# substantive significance: The baseline of earning is 18269 and assignment has a positive 1390.1 impact on earning
+# statistical significance: We reject the null hypothesis at 0.05 level of significance and conclude that the intercept and coefficient are significantly different from zero
+# We can claim this is truly a causal effect because the covariate are similar across treatment groups
+```
+```{r}
+# problem 2C
+mod.3 = lm( earnings ~ assignmt + sex + age +prevearn + married + hsorged + black + hispanic, lalonde)
+summary(mod.3)
+# It is not significantly different from the effect in part B. We might expect this result because both results are unbiased so they should not differ by a lot, but in this model we also added the covariates of sex, age, prevearn, married, hsorged, black, and Hispanic. 
+```
+```{r}
+# problem 2D
+mod.4 = lm(earnings ~ training, lalonde)
+summary(mod.4)
+# the estimated intercept is 18214.3, SE = 257.3 and the estimated coefficient of training is 2229.6, SE = 387.5. 
+treated <- lalonde[lalonde$training==1,]
+control <- lalonde[lalonde$training==0,]
+
+list_var <- c("sex", "age", "prevearn","married", "hsorged", "black", "hispanic")
+
+#Empty dataframe
+columns <- c("Variable", "Treated Mean","Control Mean",
+             "Difference","T-stat","P-value") 
+out <- data.frame(matrix(nrow = 0, ncol = length(columns))) 
+colnames(out) <- columns
+
+#Add t test results
+for(i in 1:length(list_var)){
+  t <- t.test(treated[,list_var[i]], control[,list_var[i]])
+  res <- c(t$estimate[1],t$estimate[2],
+           t$estimate[1] - t$estimate[2],
+           t$statistic,t$p.value)
+  res <- round(as.numeric(res),3)
+  res <- c(list_var[i], res)
+  out[nrow(out) + 1,] <- res
+}
+out
+# This regression fails to give us an unbiased estimate because it is not fully randomized and the covariates are different. 
+```
+```{r}
+# problem 2E
+mod.5 = lm(earnings ~ training + sex + age +prevearn + married + hsorged + black + hispanic, lalonde)
+summary(mod.5)
+# The new estimate of the training effect is 2246.
+```
+```{r}
+# problem 2F
+library(MatchIt)
+m.out <- matchit(training ~ sex + age + prevearn + married + hsorged + black + hispanic, data = lalonde, method = "nearest", distance = "mahalanobis", estimand = 'ATT', ratio = 1,  replace = TRUE)
+m.treated <- get_matches(m.out, id = 'idx')
+m.out2 <- matchit(training ~ sex + age + prevearn + married + hsorged + black + hispanic, data = lalonde, method = "nearest", distance = "mahalanobis", estimand = 'ATC', ratio = 1,  replace = TRUE)
+m.treated <- get_matches(m.out, id = 'idx')
+m.control <- get_matches(m.out2, id = 'idx')
+ATT <- mean(m.treated[m.treated$assignmt == 1,"earnings"]) - mean(m.treated[m.treated$assignmt == 0,"earnings"])
+ATT
+ATC <- mean(m.control[m.control$assignmt == 1,"earnings"]) - mean(m.control[m.control$assignmt == 0,"earnings"])
+ATC
+ATE <- (ATT*nrow(treated) + ATC*nrow(control))/nrow(lalonde)
+ATE
+# this set of result may be more robust and meaningful than the regression estimate in part E because with nearest neighborhood matching, we are constructing the counterfactual of each observation in the data instead of adjusting for selection on observable covariates through regression, which give us a more robust result. 
+```
+

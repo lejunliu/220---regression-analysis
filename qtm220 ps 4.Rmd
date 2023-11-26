@@ -1,0 +1,169 @@
+---
+title: "qtm 220 ps 4"
+output: html_document
+date: "2023-02-26"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+subprime <- read.csv("subprime.csv")
+library(dplyr)
+library(tidyverse)
+```
+
+```{r}
+
+# Univariate Sampling and Inference
+# Part A
+pop_mean = mean(subprime$high.rate)
+pop_var = var(subprime$high.rate)
+pop_mean
+pop_var
+```
+
+```{r}
+# Part B
+set.seed(220)
+sample_250 = sample(subprime$high.rate, 250)
+mean_250 = mean(sample_250)
+var_250 = var(sample_250)
+upper_bound_CI = mean_250 + qnorm(0.025)*sd(sample_250)/sqrt(250)
+lower_bound_CI = mean_250 - qnorm(0.025)*sd(sample_250)/sqrt(250)
+mean_250
+var_250
+upper_bound_CI
+lower_bound_CI
+```
+```{r}
+# Part C
+set.seed(220)
+counter = 0
+mean_5000 = c()
+var_5000 = c()
+for(i in 1:5000){
+  temp = sample(subprime$high.rate, 250, replace = F)
+  mean_5000[i] = mean(temp)
+  var_5000[i] = var(temp)
+  upper_CI = mean(temp) + qnorm(0.025)*sd(temp)/sqrt(250)
+  lower_CI = mean(temp) - qnorm(0.025)*sd(temp)/sqrt(250)
+  if(between(pop_mean, upper_CI, lower_CI)){
+    counter = counter + 1
+  }
+}
+counter/5000
+plot(density(mean_5000), main = 'Sampling Distribution of the Average Subprime Lending Rate')
+abline(v = pop_mean, col = "red")
+mean(mean_5000) # this is unbiased because the mean is the same as population mean. 
+```
+```{r}
+# Part D
+mean_1000 = c()
+var_1000 = c()
+for(i in 1:5000){
+  temp_2 = sample(subprime$high.rate, 1000, replace = F)
+  mean_1000[i] = mean(temp_2)
+  var_1000[i] = var(temp_2)
+}
+plot(density(mean_1000))
+abline(v= pop_mean, col = "red")
+var(mean_1000)
+var(mean_5000)
+# with increased sample size, the variance is smaller and the peak is closer to the vertical line meaning that a larger sample size gives us a more consistent estimation of population mean. 
+```
+```{r}
+# Part E
+t.test(sample_250, mu = 0.5)
+t_statistic <- (mean(sample_250) - 0.5)/(sd(sample_250)/sqrt(250))
+t_statistic
+p <- pt(t_statistic, 249, lower.tail = TRUE)
+p
+#reject null at p = 0.05
+two_sided_p <- 2*p
+two_sided_p
+#also reject null at p = 0.05; the confidence interval from part b supports this because the interval does not include the null. 
+```
+
+```{r}
+# Regression Inference
+# Part A
+mod.1 <- lm(data = subprime, loan.amount ~ income)
+summary(mod.1)
+# the intercept is 150 and the coefficient of income is 0.5139
+```
+```{r}
+# Part B
+set.seed(220)
+sample2_250 = subprime[sample(nrow(subprime), 250), ]
+mod.2 = lm(data = sample2_250, loan.amount ~ income)
+summary(mod.2)
+confint(mod.2)
+# intercept is 133.6, coefficient for income is 0.557. Interpretation: When income is 0, loan amount is 133.6 and with one unit of increase in income, loan amount increases by 0.557 units
+# standard error for intercept is 10.1 and for coefficient of income is 0.05
+# t value for intercept is 13.23 and for coefficient of income is 11.12.
+# p value for intercept and for coefficient of income is smaller than 2e-16. Interpretation: since p value is smaller than p = 0.05, we reject null hypothesis at 5% significance level
+# 95% confidence interval is between 113.7159847 and 153.4883170 for intercept and between 0.458185 and 0.6553646 for coefficient of income. Interpretation: we are 95% confidence that the true value of intercept will be captured in the interval [113.7159847, 153.4883170] and the true value of coefficient of income will be captured in the interval [0.458185, 0.6553646]
+
+```
+```{r}
+library(car)
+# Part C
+linearHypothesis(mod.2,c("income = 0.5"))
+# fail to reject null because p value is greater than 0.05
+linearHypothesis(mod.2,c("income = 0.5", "(Intercept) = 150"))
+#fail to reject null because p value is greater than 0.05
+```
+```{r}
+# Part D
+upper2_CI <- mean(sample2_250$loan.amount) + qnorm(0.025)*sd(sample2_250$loan.amount)/sqrt(250)
+lower2_CI <- mean(sample2_250$loan.amount) - qnorm(0.025)*sd(sample2_250$loan.amount)/sqrt(250)
+
+seq_income = seq(min(sample2_250$income),max(sample2_250$income),0.5)
+predict_loan = predict(mod.2)
+ggplot(data=sample2_250, aes(x = income, y = loan.amount)) +
+  geom_point(alpha = 0.2, col = "blue") +
+  geom_smooth(method = lm, col = "red") +
+  geom_hline(yintercept = upper2_CI, col = "yellow") +
+  geom_hline(yintercept =lower2_CI, col = "yellow")
+
+predict(mod.2, newdata = data.frame(income = 50),interval="confidence",
+        level = 0.95)
+predict(mod.2, newdata = data.frame(income = 100),interval="confidence",
+        level = 0.95)
+
+z = (mean(sample2_250$loan.amount) - mean(subprime$loan.amount))/sd(subprime$loan.amount)
+p_value = pnorm(z, mean = mean(subprime$loan.amount),sd = sd(subprime$loan.amount))
+p_value
+# p value is 0.088 which is greater than 0.05, so it does not differ significantly at the 5% level
+```
+```{r}
+# Part E
+set.seed(220)
+intercept = c()
+coefficient = c()
+for (i in 1:1000){
+  temp_3 = subprime[sample(nrow(subprime), 250, replace = F),]
+  mod = lm(temp_3$loan.amount ~ temp_3$income)
+  intercept[i] = mod$coefficient[1]
+  coefficient[i] = mod$coefficient[2]
+}
+
+# for intercept
+x = seq(1,1000,1)
+intercept_1000 = data.frame(cbind(x, intercept))
+coefficient_1000 = data.frame(cbind(x, coefficient))
+ggplot(data = intercept_1000, aes(x = intercept)) +
+  geom_histogram(binwidth = 10) +
+  geom_vline(xintercept = mod.1$coefficients[1])
+
+# for coefficient
+ggplot(data = coefficient_1000, aes(x = coefficient)) +
+  geom_histogram(binwidth = 0.1) +
+  geom_vline(xintercept = mod.1$coefficients[2])
+
+# These two distributions demonstrated the unbiasedness and consistency properties of OLS estimators. The standard deviations these distributions are generally close to the standard error in part B
+```
+
+

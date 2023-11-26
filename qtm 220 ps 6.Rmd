@@ -1,0 +1,74 @@
+---
+title: "qtm 220 ps6"
+output: html_document
+date: "2023-03-29"
+---
+
+```{r}
+subprime <- read.csv("subprime.csv")
+```
+```{r}
+# Part A
+mod.1 <- lm(high.rate ~ income + I(income^2) + black + woman, subprime)
+summary(mod.1)
+# The main problem of this regression is that the adjusted R-squared is very low, meaning that the model is not a good fit of the data. 
+```
+
+```{r}
+# Part B
+mod.2 <- glm(high.rate ~ income + I(income^2) + black + woman, family = binomial, subprime)
+summary(mod.2)
+coef <- exp(mod.2$coefficients)
+coef
+# interpretation: the intercept is 0.335, which means when the coefficient of income, black, and woman all equal to zero, the chance of getting high rates is 0.335. The coefficient of both income and income squared is about 1, which means that with one unit of increase in income or income squared, the odds of getting high rates increase by e^1. The same logic apply to the black and woman variables, too. The coefficient of black is 2.28, which means that the odds for blacks to have high rates is e^2.28 times the odds of nonblack getting high rates. The coefficient of woman is 1.04, the odds for women to have high rates is e^1.04 times the odds of men getting high rates. 
+library(dplyr)
+library(ggplot2)
+range(subprime$income)
+income <- 10:2000
+pred <- predict(mod.2, newdata = tibble(income = income, black = 1, woman = 1))
+odds <- exp(pred)
+probabilitiy <- (odds /(1 + odds))
+ggplot(data = data_frame(income, probabilitiy), aes(x = income, y = probabilitiy)) +
+  geom_line()
+```
+```{r}
+# Part C
+set.seed(10)
+M <- 500
+# Empty matrix to save the values
+beta <- matrix(NA, M, 5)
+
+for(i in 1:M){
+  subprime_resampled <- subprime[sample(nrow(subprime), replace = T),]
+  mod.boot <- glm(high.rate ~ income + I(income^2) + black + woman, family = binomial, subprime_resampled)
+  beta[i,] <- mod.boot$coefficients
+}
+hist(beta[,4], prob = TRUE, main = "Bootstrap Distribution of Black")
+lines(density(beta[,4]), col = 2, lwd = 2)
+se_4 <- sd(beta[,4])
+se_4
+q_val <- qt(0.975, M-1)
+print(paste0("95% CI: [", mean(beta[,4]) - q_val * se_4,",", mean(beta[,4]) + q_val * se_4,"]"))
+# since zero is not in the 95% confidence interval, we reject the null.
+```
+
+```{r}
+# Part D
+M <- 500
+# Empty matrix to save the values
+beta <- c()
+
+for(i in 1:M){
+  shuffle_black<- sample(subprime$black)
+  mod.perm <- glm(high.rate ~ income + I(income^2) + shuffle_black + woman, family = binomial, subprime)
+  beta[i] <- mod.perm$coefficients[4]
+}
+hist(beta, prob = TRUE, main = "Permutation Distribution of Black", xlim = range(-0.5,1))
+lines(density(beta), col = 2, lwd = 2)
+abline(v = mod.2$coefficients[4], col="red", lwd=3, lty=2)
+# the null hypothesis is there is no relationship between either an individual is black and whether receive high rates. 
+p <- 2* mean(beta >= abs(mod.2$coefficients[4]))
+p
+# we reject the null hypothesis because our original black variable (beta_4) appears to be significantly different from the ones obtained from other permutations of the data, which is centered around 0
+```
+

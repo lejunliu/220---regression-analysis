@@ -1,0 +1,78 @@
+---
+title: "qtm220 ps2"
+output: html_document
+date: "2023-02-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(tidyverse)
+emdata <- read.csv("EMdataFull2016.csv")
+```
+```{r}
+# part A
+mod.1 <- lm(CLlib ~ SCscore, data = emdata)
+summary(mod.1)
+# the estimated coefficient for Scscore is 43.115. The estimated intercept is 27.559.
+# interpretations: On average, for every unit of increase in SCscore, the civil liberty increase by 43.115 percentage points.
+sc_seq <- seq(0,1,0.01)
+predicted <- predict(mod.1, newdata = data.frame(SCscore = sc_seq))
+predicted_df <- data.frame(SCscore = sc_seq, CLlib = predicted)
+ggplot(data = emdata, aes(x= SCscore, y = CLlib)) +
+  geom_point(color = "steelblue", alpha = 0.2, size = 2) +
+  geom_line(color = "red", data = predicted_df, aes(x = SCscore, y = CLlib), lwd = 1) +
+  theme_bw()
+```
+
+```{r}
+#part B
+emdata$PartyPres = factor(emdata$PartyPres)
+mod.2 = lm(CLlib ~SCscore + PartyPres , data = emdata)
+summary(mod.2)
+# The estimated coefficient for SCscore is 42.56, the estimated coefficient for PartyPres is -0.73. The estimated intercept is 28.29. R squared here is larger than the one in part A. 
+# We prefer adjusted R squared in multiple regression because adjusted R squared takes into account the number of independent variables so we can determine whether adding new variables into the model actually increase the goodness of fit.  
+# interpretations: holding other variables’ effects constant or everything else being equal, one unit of increase in SCscore is associated with 42.5551 units of increase in CLlib, on average, and -0.73 is the average difference in CLlib between the parties. 
+predicted2 = predict(mod.2)
+ggplot(data = emdata, aes(x = SCscore, y = CLlib)) +
+  geom_point(aes(color = PartyPres)) +
+  geom_line(aes(x = SCscore, y = predicted2, color = PartyPres))
+```
+
+```{r}
+# part C
+x = cbind(1, emdata$SCscore, emdata$PartyPres)
+y = emdata$CLlib
+beta = solve(t(x) %*% x) %*%t(x) %*% y
+beta
+e = y - (x %*% beta)
+round(t(x) %*% e,2)
+```
+
+```{r}
+#part D
+mod.3 = lm(SCscore ~ PartyPres, data = emdata)
+residual = emdata$SCscore - predict(mod.3)
+residual
+mod.4 = lm(emdata$CLlib ~ residual)
+summary(mod.4)
+# the coefficient of residual is 42.555. In part B, the coefficient of SCscore is 42.56, which are very close. 
+```
+```{r}
+# part E
+mod.5 = lm(CLlib ~ PartyPres, data = emdata)
+residual2 = emdata$CLlib - predict(mod.5)
+residual2
+
+mod.6 = lm(residual2 ~ residual)
+summary(mod.6)
+
+predicted3 <- predict(mod.6)
+data <- data.frame(cbind(residual2, residual))
+ggplot(data = data, aes(x= residual, y = residual2)) +
+  geom_point(color = "blue", alpha = 2, size = 2) +
+  geom_line(color = "red", aes(x = residual, y = predicted3), lwd = 1) +
+  theme_bw()
+```
+

@@ -1,0 +1,135 @@
+---
+title: "qtm 220 ps 5"
+output: html_document
+date: "2023-03-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+subprime <- read.csv("subprime.csv")
+```
+
+```{r}
+# Q.A
+mod.1 <- lm(loan.amount ~ income, data = subprime)
+plot(mod.1, which = 2)
+summary(mod.1)
+```
+```{r}
+# Q.B
+mod.2 <- lm(log(loan.amount) ~ income, data = subprime)
+plot(mod.2, which = 2)
+summary(mod.2)
+# yes, normality assumptions are more likely to be met. 
+```
+```{r}
+# Q.C
+plot(mod.2, which = 1)
+subprime$res2 <- (mod.2$residuals)^2
+mod.3 <- lm(res2 ~ mod.2$fitted.values, data = subprime)
+plot(mod.2$fitted.values, subprime$res2)
+summary(mod.3)
+# Yes, we suspect there are some heteroscedasticity. The squared residuals should form a relatively uniform band if homoskedasticity is satisfied, and we can clearly see here it’s not. 
+```
+```{r}
+# Q.D 
+library(sandwich)
+library(lmtest)
+vcov <- vcovHC(mod.2, type = "HC1")
+sqrt(diag(vcov))
+coeftest(mod.2, vcov. = vcov)
+```
+
+```{r}
+# Q.E 
+subprime$residual = mod.2$residuals
+mod.4 = lm(residual ~ woman, data = subprime)
+summary(mod.4)
+# the p value is less than 0.05, so it is significant; thus woman is possibly incorrectly omitted from the model
+mod.5 = lm(income ~ woman, data = subprime)
+summary(mod.5)
+# woman is negatively correlated with income and income is positively correlated with loan amount, so the coefficient has been overestimated.
+```
+```{r}
+# Q.F
+mod.6 = lm(log(loan.amount) ~ income + woman, data = subprime)
+summary(mod.6)
+# The coefficient for the income is smaller than the one in mod.2, which supports the answer from question E.
+```
+```{r}
+# Q.G
+head(mod.2$fitted.values)
+confint(mod.2)
+confint(mod.6)
+# in mod.2 from part B, woman variable affects the prediction through income. In mod.6 from part F, woman variable directly affects the prediction.
+```
+```{r}
+# Q.H
+mod.full = lm(log(loan.amount) ~ income*woman*black, data = subprime)
+summary(mod.full)
+mod.step <- step(mod.full, direction = "backward", trace = 1, k = 2)
+summary(mod.step)
+# In the first step, the interaction term between income, black, woman is excluded. In the second step, the interaction term between black and woman is dropped. 
+# The model selection method may not get the best model because it eliminates some possible models without examining them which might lead to us missing some better models. 
+```
+```{r}
+# Q.I
+set.seed(100)
+random = rnorm(nrow(subprime), mean = 0, sd = 1000)
+subprime$new_income = subprime$income + random
+mod.7 = lm(log(loan.amount) ~ new_income, data = subprime)
+summary(mod.7)
+summary(mod.2)
+# in mod.7, the coefficient of income is much smaller than coefficient of income in mod.2. This tells us that measuring error in independent variable affects the coefficient toward zero. 
+```
+```{r}
+# Q.J
+set.seed(100)
+subprime$income_miss <- subprime$income
+subprime[1:2000,]$income_miss <- NA
+mod.8 = lm(income_miss ~ black + woman, subprime)
+subprime[1:2000,]$income_miss <- predict(mod.8, newdata = subprime[1:2000,])
+summary(lm(log(loan.amount) ~ income_miss, subprime))
+```
+```{r}
+subprime[1:2000,]$income_miss <- NA
+df <- subprime[,c("income_miss", "black","woman","loan.amount")]
+mod.9 = lm(income_miss ~ black + woman, df)
+summary(mod.9)
+```
+```{r}
+V <- predict(mod.9, newdata = df[1:2000,], se.fit = T)
+prediction.se <-  sqrt(V$se.fit^2 + V$residual.scale^2)
+df[1:2000,]$income_miss <- V$fit + rnorm(100, 0, sd = prediction.se)
+summary(lm(loan.amount ~ income_miss, df))
+```
+```{r}
+analyses <- list()
+for(i in 1:5){
+  df[1:2000,]$income_miss <- V$fit + rnorm(100, 0, sd = prediction.se)
+  analyses[[i]] <- lm(log(loan.amount) ~ income_miss, df)
+}
+library(mice)
+mods <- list(c(100,0,0,0), analyses)
+names(mods) <- c("nmis","analyses")
+summary(pool(as.mira(mods)))
+```
+```{r}
+df[1:2000,]$income_miss <- NA
+predictor <- matrix(0, 4, 4)
+predictor[1,c(2,3)] <- 1
+predictor
+imp <- mice(df, m = 5, predictorMatrix = predictor,
+            seed = 100, print = F, method = 'norm')
+fit <- with(imp, lm(log(loan.amount) ~ income_miss))
+est1 <- pool(fit)
+summary(est1)
+# the imputed regression will cover the true model given that the missing is at random, meaning that the probability of data being missed only depends on observed data. Also, the imputation model should include all variables that are related to the missing data and the outcome variable. If the imputation model is correctly specified and the number of imputations is sufficiently large, it can recover the true model by reducing the bias and increasing the precision of the estimates.
+```
+
+
+
+

@@ -1,0 +1,59 @@
+---
+title: "qtm 220 ps3"
+output: html_document
+date: "2023-02-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Part A
+emdata <- read.csv("EMdataFull2016.csv")
+# to standardize SCscore
+emdata$standardized_sc = (emdata$SCscore - mean(emdata$SCscore))/sd(emdata$SCscore)
+mod.1 <- lm(Fedlib ~ standardized_sc, data = emdata)
+summary(mod.1)
+# interpretation: On average, increasing SCscore by one standard deviation is associated with 2.746 units of increase in Feblib. When standardized SCscore is zero, Feblib is 60.011.
+```
+
+```{r}
+# Part B
+library(tidyverse)
+mod.2 <- lm(Fedlib ~ SCscore + I(SCscore^2), data = emdata)
+summary(mod.2)
+sc_seq <-seq(0,1,0.01)
+predict_fedlib <- predict(mod.2, newdata = data_frame(SCscore = sc_seq))
+predicted_df <- data.frame(SCscore = sc_seq, Fedlib = predict_fedlib)
+ggplot(data = emdata, aes(x = SCscore, y = Fedlib)) +
+  geom_point() +
+  geom_line(data = predicted_df) +
+  geom_vline(xintercept = mod.2$coefficient[2]/(-2 * mod.2$coefficient[3]))
+mod.2$coefficient[2]/(-2 * mod.2$coefficient[3])
+# interpretation: SCscore has an U-shape relationship with Fedlib. For justices with a score lower than 0.304, the relationship is  negative. For justice with a score larger than 0.304, the relationship is positive. 
+# the coefficient for scscore is -11.56 and for scscore_squared is 19.16. By taking the derivative of the modal, we get -11.652 + 2*19.156*SCscore, and this is the rate of change of SCscore at any point on the fitted line. 
+```
+
+```{r}
+# Part C
+emdata$LnFedlib = log(emdata$Fedlib)
+mod.3 <- lm(formula = LnFedlib ~ SCscore, data = emdata)
+summary(mod.3)
+# interpretation: For one unit of increase in SCscore, the expected ratio Fedlib will be e^0.15885, which is approximately 100*0.15585 percent of increase in Fedlib. 
+```
+
+```{r}
+# Part D
+mod.4 <- lm(Fedlib ~ SCscore + PartyPres + SCscore:PartyPres, data = emdata)
+summary(mod.4)
+emdata$predicted2 = predict(mod.4)
+ggplot(data = emdata, aes(x = SCscore, y = Fedlib, color = factor(PartyPres))) +
+  geom_point() +
+  geom_line(aes(x = SCscore, y = predicted2, color = factor(PartyPres)), lwd = 1)
+# interpretation: The coefficient for SCscore is 26.077, which means for the Democratic justices, on average, one unit of increase in SCscore is associated with 26.077 units of increase in Fedlib.The coefficient for PartyPresR is 15.899, meaning that  when SCscore is 0 and the Fedlib of a justice appointed by Republican President is 42.03+15.899=57.929. The coefficient for the interaction term is -22.83, which means for the Republican justices, on average, one unit of increase in SCscore is associated with 26.077 - 22.83 = 3.247 units of increase in Fedlib. 
+demo <- predict(mod.4, newdata = data.frame(SCscore = 0.4, PartyPres = 'D'))
+rep <- predict(mod.4, newdata = data.frame(SCscore = 0.8, PartyPres = 'R'))
+demo - rep
+```
+
